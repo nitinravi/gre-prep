@@ -1,21 +1,24 @@
 import React from 'react';
-import { ThemeProvider } from './context/ThemeContext';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { TestProvider } from './context/TestContext';
-import { HistoryProvider } from './context/HistoryContext';
-import TestContainer from './components/test/TestContainer';
+import LandingPage from './components/LandingPage';
+import TestUpload from './components/test/TestUpload';
+import TestScreen from './components/test/TestScreen';
+import ResultSummary from './components/test/ResultSummary';
 
-function App() {
+const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <HistoryProvider>
-        <TestProvider>
-          <div className="min-h-screen bg-gray-50">
-            <TestContainer />
-          </div>
-        </TestProvider>
-      </HistoryProvider>
-    </ThemeProvider>
+    <Router>
+      <TestProvider>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/upload" element={<TestUpload />} />
+          <Route path="/test" element={<TestScreen />} />
+          <Route path="/results" element={<ResultSummary />} />
+        </Routes>
+      </TestProvider>
+    </Router>
   );
-}
+};
 
 export default App;

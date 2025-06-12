@@ -3,14 +3,28 @@ import { useTest } from '../../context/TestContext';
 import { CheckCircle, XCircle, RotateCcw, ChevronDown, ChevronUp, Clock, Target, Award } from 'lucide-react';
 
 const ResultSummary: React.FC = () => {
-  const { testData, userAnswers, resetTest, score } = useTest();
+  const { testData, userAnswers, score, resetTest, totalTimeTaken } = useTest();
   const [expandedQuestions, setExpandedQuestions] = useState<number[]>([]);
 
   if (!testData) return null;
 
-  const correctCount = userAnswers.filter(a => a.isCorrect).length;
   const totalQuestions = testData.questions.length;
-  const accuracy = (correctCount / totalQuestions) * 100;
+  const accuracy = (score / totalQuestions) * 100;
+  const averageTimePerQuestion = Math.round(totalTimeTaken / totalQuestions);
+
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${remainingSeconds}s`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${remainingSeconds}s`;
+  };
 
   const toggleQuestion = (questionId: number) => {
     setExpandedQuestions(prev => 
@@ -56,13 +70,15 @@ const ResultSummary: React.FC = () => {
       }
     });
 
-    // Remove question types with 0 total questions
+    // Only return types that have questions
     return Object.entries(stats)
-      .filter(([_, s]) => s.total > 0)
-      .reduce<Record<string, StatsType>>((acc, [type, s]) => ({
-        ...acc,
-        [type]: s
-      }), {});
+      .filter(([_, data]) => data.total > 0)
+      .map(([type, data]) => ({
+        type,
+        total: data.total,
+        correct: data.correct,
+        accuracy: (data.correct / data.total) * 100
+      }));
   };
 
   const renderAnswerDetails = (question: any, answer: any) => {
@@ -262,119 +278,129 @@ const ResultSummary: React.FC = () => {
   };
 
   const questionTypeStats = getQuestionTypeStats();
-  const weakestArea = Object.entries(questionTypeStats)
-    .reduce((prev, [type, stats]) => {
-      const accuracy = stats.total > 0 ? (stats.correct / stats.total) : 1;
-      return accuracy < prev.accuracy ? { type, accuracy } : prev;
-    }, { type: '', accuracy: 1 });
+  const weakestArea = questionTypeStats.reduce((prev, { type, accuracy }) => {
+    return accuracy < prev.accuracy ? { type, accuracy } : prev;
+  }, { type: '', accuracy: 1 });
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="bg-blue-600 p-6 text-white">
-          <h1 className="text-3xl font-bold">Test Results</h1>
-          <p className="mt-2 opacity-90">{testData.section}</p>
-        </div>
-        
-        <div className="p-6">
-          {/* Score Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-white rounded-lg border p-4 flex items-center">
-              <Award className="text-blue-600 mr-3" size={24} />
-              <div>
-                <div className="text-sm text-gray-600">Overall Score</div>
-                <div className={`text-2xl font-bold ${getScoreColor()}`}>
-                  {score}%
-                </div>
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white shadow rounded-lg p-6 mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Test Results</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="text-sm text-blue-600 mb-1">Score</div>
+              <div className="text-3xl font-bold text-blue-900">{score}/{totalQuestions}</div>
+            </div>
+            
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="text-sm text-green-600 mb-1">Accuracy</div>
+              <div className="text-3xl font-bold text-green-900">{accuracy.toFixed(1)}%</div>
+            </div>
+
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <div className="text-sm text-orange-600 mb-1">Total Time</div>
+              <div className="text-3xl font-bold text-orange-900">{formatTime(totalTimeTaken)}</div>
+              <div className="text-sm text-orange-600 mt-1">
+                ~{formatTime(averageTimePerQuestion)} per question
               </div>
             </div>
-            <div className="bg-white rounded-lg border p-4 flex items-center">
-              <Target className="text-blue-600 mr-3" size={24} />
-              <div>
-                <div className="text-sm text-gray-600">Accuracy</div>
-                <div className="text-2xl font-bold">
-                  {correctCount} / {totalQuestions}
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-lg border p-4 flex items-center">
-              <Clock className="text-blue-600 mr-3" size={24} />
-              <div>
-                <div className="text-sm text-gray-600">Time Used</div>
-                <div className="text-2xl font-bold">35:00</div>
-              </div>
+
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="text-sm text-purple-600 mb-1">Section</div>
+              <div className="text-3xl font-bold text-purple-900">{testData.section}</div>
             </div>
           </div>
 
-          {/* Performance Analysis */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Performance Analysis</h2>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-medium mb-2">By Question Type</h3>
-                  <div className="space-y-2">
-                    {Object.entries(questionTypeStats).map(([type, stats]) => (
-                      <div key={type}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-700">{type}</span>
-                          <span className="font-medium">
-                            {stats.correct}/{stats.total}
-                            <span className="text-gray-600 ml-1">
-                              ({Math.round((stats.correct / stats.total) * 100)}%)
-                            </span>
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${(stats.correct / stats.total) * 100}%` }}
-                          />
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance by Question Type</h3>
+            <div className="space-y-4">
+              {getQuestionTypeStats().map(({ type, total, correct, accuracy }) => {
+                const questionsOfType = userAnswers.filter(
+                  a => testData.questions.find(q => q.id === a.questionId)?.type === type
+                );
+                const totalTimeForType = questionsOfType.reduce((sum, q) => sum + q.timeTaken, 0);
+                const avgTimeForType = Math.round(totalTimeForType / total);
+
+                return (
+                  <div key={type} className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-700">{type}</span>
+                      <div className="text-right">
+                        <span className="text-sm text-gray-600">
+                          {correct}/{total} ({accuracy.toFixed(1)}%)
+                        </span>
+                        <div className="text-xs text-gray-500">
+                          Avg. time: {formatTime(avgTimeForType)}
                         </div>
                       </div>
-                    ))}
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full" 
+                        style={{ width: `${accuracy}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <h3 className="font-medium mb-2">Key Insights</h3>
-                  <ul className="space-y-2 text-sm">
-                    <li className="text-gray-700">
-                      • Overall Accuracy: {Math.round(accuracy)}%
-                    </li>
-                    <li className="text-gray-700">
-                      • Strongest Area: {Object.entries(questionTypeStats)
-                        .reduce((prev, [type, stats]) => {
-                          const acc = stats.total > 0 ? (stats.correct / stats.total) : 0;
-                          return acc > prev.acc ? { type, acc } : prev;
-                        }, { type: '', acc: 0 }).type}
-                    </li>
-                    <li className="text-gray-700">
-                      • Area for Improvement: {weakestArea.type}
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Detailed Question Analysis */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Question Analysis</h2>
-            <div className="space-y-4">
-              {testData.questions.map((question) => {
-                const answer = userAnswers.find(a => a.questionId === question.id);
-                return renderAnswerDetails(question, answer);
+                );
               })}
             </div>
           </div>
-          
-          <div className="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3">
+
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-gray-900">Question Analysis</h3>
+            {testData.questions.map((question, index) => {
+              const answer = userAnswers.find(a => a.questionId === question.id);
+              const isExpanded = expandedQuestions.includes(question.id);
+
+              return (
+                <div 
+                  key={question.id}
+                  className="bg-gray-50 rounded-lg overflow-hidden"
+                >
+                  <div 
+                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-100"
+                    onClick={() => toggleQuestion(question.id)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`
+                        w-8 h-8 rounded-full flex items-center justify-center
+                        ${answer?.isCorrect 
+                          ? 'bg-green-100 text-green-600' 
+                          : 'bg-red-100 text-red-600'
+                        }
+                      `}>
+                        {answer?.isCorrect ? '✓' : '✗'}
+                      </div>
+                      <div>
+                        <div className="font-medium">Question {index + 1}</div>
+                        <div className="text-sm text-gray-500">
+                          {question.type} • {formatTime(answer?.timeTaken || 0)}
+                        </div>
+                      </div>
+                    </div>
+                    <button className="text-gray-400">
+                      {isExpanded ? '▼' : '▶'}
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 p-4">
+                      {renderAnswerDetails(question, answer)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 flex justify-between">
             <button
               onClick={resetTest}
-              className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-colors"
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
             >
-              <RotateCcw size={18} className="mr-2" />
-              Try Again
+              Take Another Test
             </button>
           </div>
         </div>

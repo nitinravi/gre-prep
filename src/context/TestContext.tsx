@@ -1,98 +1,91 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { TestData, Question, Answer, HistoryEntry } from '../types';
-import { useHistory } from './HistoryContext';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+interface Question {
+  id: number;
+  type: string;
+  question: string;
+  options: string[];
+  correct_answers: string[] | Record<string, string>;
+  passage?: string;
+  blanks?: number;
+}
+
+interface TestData {
+  section: string;
+  total_questions: number;
+  questions: Question[];
+}
+
+interface UserAnswer {
+  questionId: number;
+  answer: string | string[] | Record<string, string>;
+  isCorrect: boolean;
+  timeTaken: number;
+}
 
 interface TestContextType {
   testData: TestData | null;
-  currentQuestionIndex: number;
-  userAnswers: Answer[];
-  isTestStarted: boolean;
-  isTestComplete: boolean;
-  timeRemaining: number;
+  setTestData: (data: TestData) => void;
+  userAnswers: UserAnswer[];
+  setAnswer: (questionId: number, answer: any) => void;
   score: number;
-  loadTest: (data: TestData) => void;
-  startTest: () => void;
-  setAnswer: (questionId: number, answer: string | string[] | Record<string, string>) => void;
-  nextQuestion: () => void;
-  prevQuestion: () => void;
-  goToQuestion: (index: number) => void;
-  completeTest: () => void;
   resetTest: () => void;
-  setTimeRemaining: (time: number) => void;
-  decrementTime: () => void;
+  timeElapsed: number;
+  isTestActive: boolean;
+  startTest: () => void;
+  endTest: () => void;
+  totalTimeTaken: number;
 }
 
 const TestContext = createContext<TestContextType | undefined>(undefined);
 
-interface TestProviderProps {
-  children: ReactNode;
-}
+const SESSION_STORAGE_KEY = 'gre_test_state';
 
-export const TestProvider: React.FC<TestProviderProps> = ({ children }) => {
+export const TestProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [testData, setTestData] = useState<TestData | null>(null);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Answer[]>([]);
-  const [isTestStarted, setIsTestStarted] = useState(false);
-  const [isTestComplete, setIsTestComplete] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(35 * 60); // 35 minutes in seconds
-  const [score, setScore] = useState(0);
-  const { addHistoryEntry } = useHistory();
+  const [userAnswers, setUserAnswers] = useState<UserAnswer[]>(() => {
+    const savedState = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedState) {
+      const { userAnswers } = JSON.parse(savedState);
+      return userAnswers;
+    }
+    return [];
+  });
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [isTestActive, setIsTestActive] = useState(false);
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
+  const [totalTimeTaken, setTotalTimeTaken] = useState(() => {
+    const savedState = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedState) {
+      const { totalTimeTaken } = JSON.parse(savedState);
+      return totalTimeTaken;
+    }
+    return 0;
+  });
 
-  const loadTest = (data: TestData) => {
-    setTestData(data);
-    // Initialize empty answers for each question
-    const initialAnswers = data.questions.map(q => ({
-      questionId: q.id,
-      answer: q.type === 'Sentence Equivalence' ? [] : (
-        q.type === 'Text Completion' && q.blanks > 1 ? {} : ''
-      ),
-      isCorrect: false,
-    }));
-    setUserAnswers(initialAnswers);
-    setIsTestStarted(false);
-    setIsTestComplete(false);
-    setCurrentQuestionIndex(0);
-    setTimeRemaining(35 * 60); // Reset timer
-    setScore(0);
-  };
-
-  const startTest = () => {
-    setIsTestStarted(true);
-  };
-
-  const setAnswer = (questionId: number, answer: string | string[] | Record<string, string>) => {
-    setUserAnswers(prev => {
-      const newAnswers = [...prev];
-      const index = newAnswers.findIndex(a => a.questionId === questionId);
-      
-      if (index !== -1) {
-        newAnswers[index] = {
-          ...newAnswers[index],
-          answer,
-        };
+  useEffect(() => {
+    let timer: number;
+    if (isTestActive) {
+      timer = window.setInterval(() => {
+        setTimeElapsed(prev => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) {
+        window.clearInterval(timer);
       }
-      
-      return newAnswers;
-    });
-  };
+    };
+  }, [isTestActive]);
 
-  const nextQuestion = () => {
-    if (testData && currentQuestionIndex < testData.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+  useEffect(() => {
+    if (userAnswers.length > 0) {
+      const state = {
+        userAnswers,
+        totalTimeTaken
+      };
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state));
     }
-  };
-
-  const prevQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
-  };
-
-  const goToQuestion = (index: number) => {
-    if (testData && index >= 0 && index < testData.questions.length) {
-      setCurrentQuestionIndex(index);
-    }
-  };
+  }, [userAnswers, totalTimeTaken]);
 
   const evaluateAnswer = (question: Question, userAnswer: any): boolean => {
     if (!userAnswer) return false;
@@ -111,116 +104,91 @@ export const TestProvider: React.FC<TestProviderProps> = ({ children }) => {
       } else {
         const userBlankAnswers = userAnswer as Record<string, string>;
         const correctBlankAnswers = question.correct_answers as Record<string, string>;
-        
         return Object.keys(correctBlankAnswers).every(
           blank => userBlankAnswers[blank] === correctBlankAnswers[blank]
         );
       }
-    } 
-    else if (question.type === 'Reading Comprehension' || 
-             question.type === 'Quantitative Comparison' ||
-             question.type === 'Multiple Choice — Single Answer') {
-      return userAnswer === question.correct_answers[0];
     }
     else if (question.type === 'Multiple Choice — Multiple Answers') {
       const selectedAnswers = userAnswer as string[];
       const correctAnswers = question.correct_answers as string[];
-      return selectedAnswers.length === correctAnswers.length &&
-             correctAnswers.every(a => selectedAnswers.includes(a));
+      return correctAnswers.length === selectedAnswers.length &&
+        correctAnswers.every(a => selectedAnswers.includes(a));
     }
     else if (question.type === 'Numeric Entry') {
-      const userNum = parseFloat(userAnswer);
-      const correctNum = parseFloat(question.correct_answers[0]);
-      // Allow for small floating point differences
-      return Math.abs(userNum - correctNum) < 0.0001;
+      const correctAnswers = question.correct_answers as string[];
+      return userAnswer === correctAnswers[0];
     }
-    
-    return false;
+    else {
+      const correctAnswers = question.correct_answers as string[];
+      return userAnswer === correctAnswers[0];
+    }
   };
 
-  const completeTest = () => {
-    if (!testData) return;
+  const setAnswer = (questionId: number, answer: any) => {
+    const question = testData?.questions.find(q => q.id === questionId);
+    if (!question) return;
+
+    const isCorrect = evaluateAnswer(question, answer);
+    const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
     
-    // Evaluate answers and calculate score
-    const evaluatedAnswers = userAnswers.map(answer => {
-      const question = testData.questions.find(q => q.id === answer.questionId);
-      const isCorrect = question ? evaluateAnswer(question, answer.answer) : false;
-      return { ...answer, isCorrect };
+    setUserAnswers(prev => {
+      const existingAnswerIndex = prev.findIndex(a => a.questionId === questionId);
+      const newAnswer = { questionId, answer, isCorrect, timeTaken };
+      
+      if (existingAnswerIndex >= 0) {
+        const newAnswers = [...prev];
+        newAnswers[existingAnswerIndex] = newAnswer;
+        return newAnswers;
+      }
+      
+      return [...prev, newAnswer];
     });
-    
-    const correctCount = evaluatedAnswers.filter(a => a.isCorrect).length;
-    const calculatedScore = Math.round((correctCount / testData.questions.length) * 100);
-    
-    // Update state
-    setUserAnswers(evaluatedAnswers);
-    setScore(calculatedScore);
-    setIsTestComplete(true);
-    
-    // Create history entry
-    const historyEntry: HistoryEntry = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      testName: testData.section,
-      score: calculatedScore,
-      questions: testData.questions.length,
-      correctAnswers: correctCount,
-    };
-    
-    addHistoryEntry(historyEntry);
+
+    setTotalTimeTaken(prev => prev + timeTaken);
+    setQuestionStartTime(Date.now()); // Reset timer for next question
+  };
+
+  const score = userAnswers.filter(a => a.isCorrect).length;
+
+  const startTest = () => {
+    setIsTestActive(true);
+    setTimeElapsed(0);
+    setQuestionStartTime(Date.now());
+    setTotalTimeTaken(0);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  };
+
+  const endTest = () => {
+    setIsTestActive(false);
   };
 
   const resetTest = () => {
-    setIsTestStarted(false);
-    setIsTestComplete(false);
-    setCurrentQuestionIndex(0);
-    setScore(0);
-    
-    if (testData) {
-      const initialAnswers = testData.questions.map(q => ({
-        questionId: q.id,
-        answer: q.type === 'Sentence Equivalence' ? [] : (
-          q.type === 'Text Completion' && q.blanks > 1 ? {} : ''
-        ),
-        isCorrect: false,
-      }));
-      setUserAnswers(initialAnswers);
-    }
-    
-    setTimeRemaining(35 * 60); // Reset timer
+    setTestData(null);
+    setUserAnswers([]);
+    setTimeElapsed(0);
+    setIsTestActive(false);
+    setTotalTimeTaken(0);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
   };
 
-  const decrementTime = () => {
-    setTimeRemaining(prev => Math.max(0, prev - 1));
-  };
-
-  // Auto-complete test when time runs out
-  useEffect(() => {
-    if (isTestStarted && timeRemaining === 0 && !isTestComplete) {
-      completeTest();
-    }
-  }, [timeRemaining, isTestStarted, isTestComplete]);
-
-  const value = {
-    testData,
-    currentQuestionIndex,
-    userAnswers,
-    isTestStarted,
-    isTestComplete,
-    timeRemaining,
-    score,
-    loadTest,
-    startTest,
-    setAnswer,
-    nextQuestion,
-    prevQuestion,
-    goToQuestion,
-    completeTest,
-    resetTest,
-    setTimeRemaining,
-    decrementTime,
-  };
-
-  return <TestContext.Provider value={value}>{children}</TestContext.Provider>;
+  return (
+    <TestContext.Provider value={{ 
+      testData, 
+      setTestData, 
+      userAnswers, 
+      setAnswer,
+      score,
+      resetTest,
+      timeElapsed,
+      isTestActive,
+      startTest,
+      endTest,
+      totalTimeTaken
+    }}>
+      {children}
+    </TestContext.Provider>
+  );
 };
 
 export const useTest = () => {
@@ -230,3 +198,5 @@ export const useTest = () => {
   }
   return context;
 };
+
+export type { Question, TestData, UserAnswer };
