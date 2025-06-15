@@ -91,7 +91,7 @@ const ResultSummary: React.FC = () => {
             <>
               <div className="mb-2">
                 <div className="font-medium text-gray-700">Your Answers:</div>
-                <div className="ml-4">{(answer.answer as string[]).join(', ') || 'No answer selected'}</div>
+                <div className="ml-4">{(answer?.answer as string[] || []).join(', ') || 'No answer selected'}</div>
               </div>
               <div>
                 <div className="font-medium text-gray-700">Correct Answers:</div>
@@ -105,7 +105,7 @@ const ResultSummary: React.FC = () => {
               <>
                 <div className="mb-2">
                   <div className="font-medium text-gray-700">Your Answer:</div>
-                  <div className="ml-4">{answer.answer || 'No answer selected'}</div>
+                  <div className="ml-4">{answer?.answer || 'No answer selected'}</div>
                 </div>
                 <div>
                   <div className="font-medium text-gray-700">Correct Answer(s):</div>
@@ -114,7 +114,7 @@ const ResultSummary: React.FC = () => {
               </>
             );
           } else {
-            const userAnswers = answer.answer as Record<string, string>;
+            const userAnswers = answer?.answer as Record<string, string> || {};
             const correctAnswers = question.correct_answers as Record<string, string>;
             return (
               <>
@@ -146,7 +146,7 @@ const ResultSummary: React.FC = () => {
               </div>
               <div className="mb-2">
                 <div className="font-medium text-gray-700">Your Answer:</div>
-                <div className="ml-4">{answer.answer || 'No answer selected'}</div>
+                <div className="ml-4">{answer?.answer || 'No answer selected'}</div>
               </div>
               <div>
                 <div className="font-medium text-gray-700">Correct Answer:</div>
@@ -161,7 +161,7 @@ const ResultSummary: React.FC = () => {
             'C': 'The two quantities are equal',
             'D': 'The relationship cannot be determined'
           };
-          const userQCAnswer = answer.answer as keyof typeof qcOptions;
+          const userQCAnswer = answer?.answer as keyof typeof qcOptions;
           const correctQCAnswer = question.correct_answers[0] as keyof typeof qcOptions;
           return (
             <>
@@ -190,7 +190,7 @@ const ResultSummary: React.FC = () => {
               </div>
               <div className="mb-2">
                 <div className="font-medium text-gray-700">Your Answer:</div>
-                <div className="ml-4">{answer.answer || 'No answer selected'}</div>
+                <div className="ml-4">{answer?.answer || 'No answer selected'}</div>
               </div>
               <div>
                 <div className="font-medium text-gray-700">Correct Answer:</div>
@@ -206,7 +206,7 @@ const ResultSummary: React.FC = () => {
               </div>
               <div className="mb-2">
                 <div className="font-medium text-gray-700">Your Answers:</div>
-                <div className="ml-4">{(answer.answer as string[] || []).join(', ') || 'No answer selected'}</div>
+                <div className="ml-4">{(answer?.answer as string[] || []).join(', ') || 'No answer selected'}</div>
               </div>
               <div>
                 <div className="font-medium text-gray-700">Correct Answers:</div>
@@ -222,7 +222,7 @@ const ResultSummary: React.FC = () => {
               </div>
               <div className="mb-2">
                 <div className="font-medium text-gray-700">Your Answer:</div>
-                <div className="ml-4">{answer.answer || 'No answer entered'}</div>
+                <div className="ml-4">{answer?.answer || 'No answer entered'}</div>
               </div>
               <div>
                 <div className="font-medium text-gray-700">Correct Answer:</div>
