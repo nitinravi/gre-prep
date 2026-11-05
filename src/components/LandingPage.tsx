@@ -9,6 +9,7 @@ const LandingPage: React.FC = () => {
       {
         "id": 1,
         "type": "Text Completion",
+        "blanks": 1,
         "question": "Despite its reputation for ______, the company's latest report was remarkably straightforward and free of any misleading statements.",
         "options": ["candor", "opacity", "obfuscation", "clarity", "transparency"],
         "correct_answers": ["opacity", "obfuscation"]
@@ -32,8 +33,8 @@ const LandingPage: React.FC = () => {
         "id": 1,
         "type": "Quantitative Comparison",
         "question": "Quantity A: √50\nQuantity B: 7",
-        "options": ["A", "B", "C", "D"],
-        "correct_answers": ["B"]
+        "options": [],
+        "correct_answers": ["A"]
       },
       {
         "id": 2,
